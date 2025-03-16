@@ -16,12 +16,14 @@ date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
 
 # 解析日期
 date = datetime.strptime(date_str, '%Y%m%d')
-maxdate = date + timedelta(days=3)
-mindate = date - timedelta(days=20)
+maxdate = date + timedelta(days=365)  # 结束日期 = 输入日期 + 365 天
+mindate = date  # 起始日期 = 输入日期
+checked_days = 0  # 统计检查的天数
 
 print(f"开始测试 WinRAR {ver} 版本的下载地址...")
 
-while True:
+while maxdate >= mindate:
+    checked_days += 1  # 统计检查的日期数
     if int(ver) >= 580:
         url = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{maxdate.strftime('%Y%m%d')}/rrlb/winrar-x64-{ver}sc.exe"
     else:
@@ -41,11 +43,13 @@ while True:
                 url_32 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{maxdate.strftime('%Y%m%d')}/wrr/wrar{ver}sc.exe"
             
             print(f"\n成功获取到 WinRAR {ver} 版本的下载地址\n\n32位：{url_32}\n64位：{url_64}")
+            print(f"\n本次共检查了 {checked_days} 天的数据")
             break
     except requests.RequestException as e:
         print(f"请求失败: {e}")
 
     maxdate -= timedelta(days=1)
+    
     if maxdate < mindate:
-        print("未找到有效的下载地址")
+        print(f"\n未找到有效的下载地址，本次共检查了 {checked_days} 天的数据")
         break
