@@ -10,7 +10,7 @@ on:
       date:
         description: "国内版数字签名日期 (YYYYMMDD)"
         required: true
-        default: "20250101"
+        default: "20250301"
 
 jobs:
   run-script:
