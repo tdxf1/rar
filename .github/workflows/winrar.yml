@@ -6,11 +6,11 @@ on:
       version:
         description: "WinRAR 版本号 (三位数字)"
         required: true
-        default: "571"
+        default: "710"
       date:
         description: "国内版数字签名日期 (YYYYMMDD)"
         required: true
-        default: "20190509"
+        default: "20250101"
 
 jobs:
   run-script:
