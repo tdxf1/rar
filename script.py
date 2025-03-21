@@ -17,7 +17,7 @@ date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
 def test_url(ver, date, format_type):
     checked_days = 0
     mindate = date - timedelta(days=30)
-    maxdate = mindate + timedelta(days=60)
+    maxdate = mindate + timedelta(days=90)  # 往后查找 90 天
     
     print(f"\n开始使用 {format_type} 格式测试 WinRAR {ver} 版本的下载地址...")
 
