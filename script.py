@@ -14,42 +14,60 @@ def get_env_variable(var_name, default_value, pattern):
 ver = get_env_variable('WINRAR_VERSION', '571', r'^\d{3}$')
 date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
 
+def test_url(ver, date, format_type):
+    checked_days = 0
+    mindate = date - timedelta(days=30)
+    maxdate = mindate + timedelta(days=60)
+    
+    print(f"\n开始使用 {format_type} 格式测试 WinRAR {ver} 版本的下载地址...")
+
+    while mindate <= maxdate:
+        checked_days += 1
+        if format_type == 'YYYYMMDD':
+            date_part = mindate.strftime('%Y%m%d')
+        elif format_type == 'YYYYDDMM':
+            date_part = mindate.strftime('%Y%d%m')
+        else:
+            raise ValueError("Unknown date format type")
+
+        if int(ver) >= 580:
+            url = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/rrlb/winrar-x64-{ver}sc.exe"
+        else:
+            url = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{date_part}/wrr/winrar-x64-{ver}sc.exe"
+
+        print(f"测试: {url}", end="  ")
+        
+        try:
+            r = requests.get(url, timeout=5)
+            print(r.status_code)
+            if r.status_code == 200:
+                if int(ver) >= 580:
+                    url_64 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/rrlb/winrar-x64-{ver}sc.exe"
+                    url_32 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/rrlb/wrar{ver}sc.exe"
+                else:
+                    url_64 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{date_part}/wrr/winrar-x64-{ver}sc.exe"
+                    url_32 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{date_part}/wrr/wrar{ver}sc.exe"
+                
+                print(f"\n成功获取到 WinRAR {ver} 版本的下载地址\n\n32位：{url_32}\n64位：{url_64}")
+                print(f"\n本次共检查了 {checked_days} 天的数据")
+                return True
+        except requests.RequestException as e:
+            print(f"请求失败: {e}")
+
+        mindate += timedelta(days=1)
+
+    print(f"\n未找到有效的下载地址，本次共检查了 {checked_days} 天的数据")
+    return False
+
 # 解析日期
 date = datetime.strptime(date_str, '%Y%m%d')
-mindate = date - timedelta(days=30)  # 先往前退30天
-maxdate = mindate + timedelta(days=365)  # 然后往后查找365天
-checked_days = 0  # 统计检查的天数
 
-print(f"开始测试 WinRAR {ver} 版本的下载地址...")
+# 先查 YYYYMMDD 格式
+found = test_url(ver, date, 'YYYYMMDD')
 
-while mindate <= maxdate:
-    checked_days += 1  # 统计检查的日期数
-    if int(ver) >= 580:
-        url = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{mindate.strftime('%Y%m%d')}/rrlb/winrar-x64-{ver}sc.exe"
-    else:
-        url = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{mindate.strftime('%Y%m%d')}/wrr/winrar-x64-{ver}sc.exe"
+# 如果未找到，再查 YYYYDDMM 格式
+if not found:
+    found = test_url(ver, date, 'YYYYDDMM')
 
-    print(f"测试: {url}", end="  ")
-    
-    try:
-        r = requests.get(url, timeout=5)
-        print(r.status_code)
-        if r.status_code == 200:
-            if int(ver) >= 580:
-                url_64 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{mindate.strftime('%Y%m%d')}/rrlb/winrar-x64-{ver}sc.exe"
-                url_32 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{mindate.strftime('%Y%m%d')}/rrlb/wrar{ver}sc.exe"
-            else:
-                url_64 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{mindate.strftime('%Y%m%d')}/wrr/winrar-x64-{ver}sc.exe"
-                url_32 = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{mindate.strftime('%Y%m%d')}/wrr/wrar{ver}sc.exe"
-            
-            print(f"\n成功获取到 WinRAR {ver} 版本的下载地址\n\n32位：{url_32}\n64位：{url_64}")
-            print(f"\n本次共检查了 {checked_days} 天的数据")
-            break
-    except requests.RequestException as e:
-        print(f"请求失败: {e}")
-
-    mindate += timedelta(days=1)  # 每次增加 1 天
-    
-    if mindate > maxdate:
-        print(f"\n未找到有效的下载地址，本次共检查了 {checked_days} 天的数据")
-        break
+if not found:
+    print("\n两个格式都未找到有效下载链接")
