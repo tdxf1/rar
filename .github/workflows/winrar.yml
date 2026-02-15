@@ -1,7 +1,7 @@
 name: Get WinRAR Download Links
 
 on:
-  workflow_dispatch:  # 允许手动触发，并提供输入参数
+  workflow_dispatch:
     inputs:
       version:
         description: "WinRAR 版本号 (三位数字)"
@@ -15,6 +15,7 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -23,14 +24,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'  # 使用 Python 3
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests urllib3
 
       - name: Run script
+        timeout-minutes: 25
         env:
           WINRAR_VERSION: ${{ github.event.inputs.version }}
           WINRAR_DATE: ${{ github.event.inputs.date }}
