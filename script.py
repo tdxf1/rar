@@ -59,8 +59,8 @@ def create_session():
     return session
 
 
-def build_url(ver, date_part):
-    return f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/wrr/winrar-x64-{ver}sc.exe"
+def build_url(ver, date_part, path_type):
+    return f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/{path_type}/winrar-x64-{ver}sc.exe"
 
 
 def smart_delay():
@@ -78,7 +78,7 @@ def check_url(session, url):
 
 # ==================== 核心逻辑 ====================
 
-def test_url(ver, date, format_type, session, batch_size, batch_pause):
+def test_url(ver, date, format_type, path_type, session, batch_size, batch_pause):
     checked_days = 0
     batch_count = 0
     consecutive_fails = 0
@@ -90,7 +90,8 @@ def test_url(ver, date, format_type, session, batch_size, batch_pause):
     current_batch = 1
 
     print(f"\n{'='*60}")
-    print(f"开始使用 {format_type} 格式测试 WinRAR {ver} 版本的下载地址")
+    print(f"使用 {format_type} 格式 + /{path_type}/ 路径")
+    print(f"测试 WinRAR {ver} 版本的下载地址")
     print(f"搜索范围: {mindate.strftime('%Y%m%d')} ~ {maxdate.strftime('%Y%m%d')} (共 {total_days} 天)")
     print(f"每组 {batch_size} 个请求，组间暂停 {batch_pause} 秒，预计 {total_batches} 组")
     print(f"{'='*60}\n")
@@ -117,7 +118,7 @@ def test_url(ver, date, format_type, session, batch_size, batch_pause):
         else:
             raise ValueError("Unknown date format type")
 
-        url = build_url(ver, date_part)
+        url = build_url(ver, date_part, path_type)
         progress = f"[{checked_days}/{total_days}]"
         print(f"{progress} 测试: {url}", end="  ")
         sys.stdout.flush()
@@ -165,19 +166,21 @@ def test_url(ver, date, format_type, session, batch_size, batch_pause):
 def main():
     ver = get_env_variable('WINRAR_VERSION', '571', r'^\d{3}$')
     date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
+    path_type = get_env_variable('PATH_TYPE', 'rrlb', r'^(rrlb|wrr)$')
     batch_size = get_env_int('BATCH_SIZE', 30)
     batch_pause = get_env_int('BATCH_PAUSE', 30)
     date = datetime.strptime(date_str, '%Y%m%d')
 
     print(f"WinRAR 版本: {ver}")
     print(f"参考日期: {date_str}")
+    print(f"路径类型: {path_type}")
     print(f"每组请求数: {batch_size}")
     print(f"组间暂停: {batch_pause} 秒")
 
     session = create_session()
 
     # 先查 YYYYMMDD 格式
-    found, session = test_url(ver, date, 'YYYYMMDD', session, batch_size, batch_pause)
+    found, session = test_url(ver, date, 'YYYYMMDD', path_type, session, batch_size, batch_pause)
 
     # 如果未找到，等待后再查 YYYYDDMM 格式
     if not found:
@@ -185,7 +188,7 @@ def main():
         time.sleep(FAIL_PAUSE)
         session.close()
         session = create_session()
-        found, session = test_url(ver, date, 'YYYYDDMM', session, batch_size, batch_pause)
+        found, session = test_url(ver, date, 'YYYYDDMM', path_type, session, batch_size, batch_pause)
 
     session.close()
 
