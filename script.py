@@ -12,12 +12,10 @@ from urllib3.util.retry import Retry
 REQUEST_DELAY = 2.0         # 每次请求最小间隔（秒）
 REQUEST_JITTER = 1.5        # 随机附加延迟（秒）
 TIMEOUT = 15                # 超时时间（秒）
-BATCH_SIZE = 25             # 每批请求数（在被封之前主动暂停）
-BATCH_PAUSE = 50            # 每批之间暂停秒数
 MAX_CONSECUTIVE_FAILS = 5   # 连续超时失败则立即暂停
 FAIL_PAUSE = 60             # 连续失败后的暂停（秒）
 SEARCH_DAYS_BEFORE = 30     # 向前搜索天数
-SEARCH_DAYS_AFTER = 60      # 向后搜索天数
+SEARCH_DAYS_AFTER = 59      # 向后搜索天数（共90天）
 
 # ==================== 工具函数 ====================
 
@@ -26,6 +24,13 @@ def get_env_variable(var_name, default_value, pattern):
     if not re.match(pattern, value):
         raise ValueError(f"{var_name} 格式错误: {value}")
     return value
+
+
+def get_env_int(var_name, default_value):
+    value = os.getenv(var_name, str(default_value))
+    if not value.isdigit() or int(value) <= 0:
+        raise ValueError(f"{var_name} 必须为正整数: {value}")
+    return int(value)
 
 
 def create_session():
@@ -73,34 +78,34 @@ def check_url(session, url):
 
 # ==================== 核心逻辑 ====================
 
-def test_url(ver, date, format_type, session):
+def test_url(ver, date, format_type, session, batch_size, batch_pause):
     checked_days = 0
-    batch_count = 0           # 当前批次已请求数
+    batch_count = 0
     consecutive_fails = 0
     mindate = date - timedelta(days=SEARCH_DAYS_BEFORE)
     maxdate = date + timedelta(days=SEARCH_DAYS_AFTER)
 
     total_days = (maxdate - mindate).days + 1
-    total_batches = (total_days + BATCH_SIZE - 1) // BATCH_SIZE
+    total_batches = (total_days + batch_size - 1) // batch_size
     current_batch = 1
 
     print(f"\n{'='*60}")
     print(f"开始使用 {format_type} 格式测试 WinRAR {ver} 版本的下载地址")
     print(f"搜索范围: {mindate.strftime('%Y%m%d')} ~ {maxdate.strftime('%Y%m%d')} (共 {total_days} 天)")
-    print(f"将分 {total_batches} 批执行，每批 {BATCH_SIZE} 个请求，批间暂停 {BATCH_PAUSE} 秒")
+    print(f"每组 {batch_size} 个请求，组间暂停 {batch_pause} 秒，预计 {total_batches} 组")
     print(f"{'='*60}\n")
 
     current = mindate
     while current <= maxdate:
-        # ===== 主动分批暂停（关键：在被封之前就休息） =====
-        if batch_count >= BATCH_SIZE:
+        # ===== 主动分批暂停 =====
+        if batch_count >= batch_size:
             current_batch += 1
-            print(f"\n⏸️  第 {current_batch-1} 批完成，主动暂停 {BATCH_PAUSE} 秒防止被限速...")
+            print(f"\n⏸️  第 {current_batch-1} 组完成，主动暂停 {batch_pause} 秒防止被限速...")
             session.close()
-            time.sleep(BATCH_PAUSE)
+            time.sleep(batch_pause)
             session = create_session()
             batch_count = 0
-            print(f"▶️  开始第 {current_batch}/{total_batches} 批\n")
+            print(f"▶️  开始第 {current_batch}/{total_batches} 组\n")
 
         checked_days += 1
         batch_count += 1
@@ -137,7 +142,6 @@ def test_url(ver, date, format_type, session):
             print(f"失败({error_name})")
             consecutive_fails += 1
 
-            # 被封了，立即长暂停 + 重建会话
             if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
                 print(f"\n⚠️  连续 {consecutive_fails} 次超时，已被限速！"
                       f"等待 {FAIL_PAUSE} 秒...")
@@ -161,15 +165,19 @@ def test_url(ver, date, format_type, session):
 def main():
     ver = get_env_variable('WINRAR_VERSION', '571', r'^\d{3}$')
     date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
+    batch_size = get_env_int('BATCH_SIZE', 30)
+    batch_pause = get_env_int('BATCH_PAUSE', 30)
     date = datetime.strptime(date_str, '%Y%m%d')
 
     print(f"WinRAR 版本: {ver}")
     print(f"参考日期: {date_str}")
+    print(f"每组请求数: {batch_size}")
+    print(f"组间暂停: {batch_pause} 秒")
 
     session = create_session()
 
     # 先查 YYYYMMDD 格式
-    found, session = test_url(ver, date, 'YYYYMMDD', session)
+    found, session = test_url(ver, date, 'YYYYMMDD', session, batch_size, batch_pause)
 
     # 如果未找到，等待后再查 YYYYDDMM 格式
     if not found:
@@ -177,7 +185,7 @@ def main():
         time.sleep(FAIL_PAUSE)
         session.close()
         session = create_session()
-        found, session = test_url(ver, date, 'YYYYDDMM', session)
+        found, session = test_url(ver, date, 'YYYYDDMM', session, batch_size, batch_pause)
 
     session.close()
 
