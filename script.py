@@ -9,7 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ==================== 配置 ====================
-REQUEST_DELAY = 1.0         # 每次请求最小间隔（秒）
+REQUEST_DELAY = 1.5        # 每次请求最小间隔（秒）
 REQUEST_JITTER = 1.5        # 随机附加延迟（秒）
 TIMEOUT = 15                # 超时时间（秒）
 MAX_CONSECUTIVE_FAILS = 5   # 连续超时失败则立即暂停
