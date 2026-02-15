@@ -11,6 +11,14 @@ on:
         description: "国内版数字签名日期 (YYYYMMDD)"
         required: true
         default: "20250804"
+      batch_size:
+        description: "每组请求数"
+        required: true
+        default: "30"
+      batch_pause:
+        description: "组间暂停秒数"
+        required: true
+        default: "30"
 
 jobs:
   run-script:
@@ -36,4 +44,6 @@ jobs:
         env:
           WINRAR_VERSION: ${{ github.event.inputs.version }}
           WINRAR_DATE: ${{ github.event.inputs.date }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size }}
+          BATCH_PAUSE: ${{ github.event.inputs.batch_pause }}
         run: python script.py
