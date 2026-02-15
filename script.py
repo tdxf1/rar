@@ -9,13 +9,13 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ==================== 配置 ====================
-REQUEST_DELAY = 2.0         # 每次请求最小间隔（秒）
+REQUEST_DELAY = 1.0         # 每次请求最小间隔（秒）
 REQUEST_JITTER = 1.5        # 随机附加延迟（秒）
 TIMEOUT = 15                # 超时时间（秒）
 MAX_CONSECUTIVE_FAILS = 5   # 连续超时失败则立即暂停
 FAIL_PAUSE = 60             # 连续失败后的暂停（秒）
 SEARCH_DAYS_BEFORE = 30     # 向前搜索天数
-SEARCH_DAYS_AFTER = 59      # 向后搜索天数（共90天）
+SEARCH_DAYS_AFTER = 59      # 向后搜索天数
 
 # ==================== 工具函数 ====================
 
