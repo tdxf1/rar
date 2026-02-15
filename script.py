@@ -2,16 +2,18 @@ import os
 import re
 import sys
 import time
+import random
 from datetime import datetime, timedelta
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ==================== 配置 ====================
-REQUEST_DELAY = 1.5         # 每次请求间隔（秒），防止触发限速
+REQUEST_DELAY = 2.0         # 每次请求最小间隔（秒）
+REQUEST_JITTER = 1.5        # 随机附加延迟（秒），实际间隔 = DELAY + random(0, JITTER)
 TIMEOUT = 15                # 超时时间（秒）
-MAX_CONSECUTIVE_FAILS = 10  # 连续失败超过此数则暂停较长时间
-LONG_PAUSE = 30             # 连续失败后的长暂停（秒）
+MAX_CONSECUTIVE_FAILS = 5   # 连续失败超过此数则暂停较长时间
+LONG_PAUSE = 60             # 连续失败后的长暂停（秒）
 SEARCH_DAYS_BEFORE = 30     # 向前搜索天数
 SEARCH_DAYS_AFTER = 60      # 向后搜索天数（从输入日期算起）
 
@@ -30,8 +32,8 @@ def create_session():
     session = requests.Session()
 
     retry_strategy = Retry(
-        total=2,
-        backoff_factor=3,
+        total=1,
+        backoff_factor=5,
         status_forcelist=[429, 500, 502, 503, 504],
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -52,44 +54,25 @@ def create_session():
 
 
 def build_url(ver, date_part):
-    """构建测试用的64位下载URL"""
-    if int(ver) >= 580:
-        return f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/rrlb/winrar-x64-{ver}sc.exe"
-    else:
-        return f"https://www.win-rar.com/fileadmin/winrar-versions/sc{date_part}/wrr/winrar-x64-{ver}sc.exe"
+    """构建64位下载URL（统一 /wrr/ 路径）"""
+    return f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/wrr/winrar-x64-{ver}sc.exe"
 
 
-def build_download_urls(ver, date_part):
-    """构建最终的32位和64位下载URL"""
-    if int(ver) >= 580:
-        base = f"https://www.win-rar.com/fileadmin/winrar-versions/sc/sc{date_part}/rrlb"
-    else:
-        base = f"https://www.win-rar.com/fileadmin/winrar-versions/sc{date_part}/wrr"
-    url_64 = f"{base}/winrar-x64-{ver}sc.exe"
-    url_32 = f"{base}/wrar{ver}sc.exe"
-    return url_32, url_64
+def smart_delay():
+    """带随机抖动的延迟，模拟人类行为"""
+    delay = REQUEST_DELAY + random.uniform(0, REQUEST_JITTER)
+    time.sleep(delay)
 
 
 def check_url(session, url):
     """
     检测URL是否可用
-    优先使用HEAD请求（不下载文件内容）
-    HEAD失败则回退到GET+stream模式（只读响应头）
+    仅使用HEAD请求（不下载文件内容，减少服务器负担）
     返回 (status_code, error)
     """
-    # 尝试 HEAD 请求
     try:
         r = session.head(url, timeout=TIMEOUT, allow_redirects=True)
         return r.status_code, None
-    except requests.RequestException:
-        pass
-
-    # HEAD 失败，尝试 GET + stream
-    try:
-        r = session.get(url, timeout=TIMEOUT, stream=True, allow_redirects=True)
-        status = r.status_code
-        r.close()
-        return status, None
     except requests.RequestException as e:
         return None, e
 
@@ -132,12 +115,10 @@ def test_url(ver, date, format_type, session):
             consecutive_fails = 0
 
             if status == 200:
-                url_32, url_64 = build_download_urls(ver, date_part)
                 print(f"\n{'='*60}")
                 print(f"✅ 成功获取到 WinRAR {ver} 版本的下载地址！")
                 print(f"")
-                print(f"  32位: {url_32}")
-                print(f"  64位: {url_64}")
+                print(f"  64位: {url}")
                 print(f"")
                 print(f"  本次共检查了 {checked_days} 天的数据")
                 print(f"{'='*60}")
@@ -148,7 +129,8 @@ def test_url(ver, date, format_type, session):
             consecutive_fails += 1
 
             if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
-                print(f"\n⚠️  连续 {consecutive_fails} 次请求失败，等待 {LONG_PAUSE} 秒后继续...")
+                print(f"\n⚠️  连续 {consecutive_fails} 次请求失败，"
+                      f"可能被限速，等待 {LONG_PAUSE} 秒后继续...")
                 time.sleep(LONG_PAUSE)
                 consecutive_fails = 0
                 session.close()
@@ -156,7 +138,7 @@ def test_url(ver, date, format_type, session):
                 print("已重建连接会话\n")
                 continue
 
-        time.sleep(REQUEST_DELAY)
+        smart_delay()
         current += timedelta(days=1)
 
     print(f"\n❌ 未找到有效的下载地址，本次共检查了 {checked_days} 天的数据")
@@ -166,7 +148,6 @@ def test_url(ver, date, format_type, session):
 # ==================== 主程序 ====================
 
 def main():
-    # 读取环境变量
     ver = get_env_variable('WINRAR_VERSION', '571', r'^\d{3}$')
     date_str = get_env_variable('WINRAR_DATE', '20190509', r'^\d{8}$')
     date = datetime.strptime(date_str, '%Y%m%d')
