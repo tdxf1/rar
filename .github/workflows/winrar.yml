@@ -50,9 +50,10 @@ jobs:
       - name: Run script
         timeout-minutes: 40
         env:
+          PYTHONUNBUFFERED: "1"
           WINRAR_VERSION: ${{ github.event.inputs.version }}
           WINRAR_DATE: ${{ github.event.inputs.date }}
           PATH_TYPE: ${{ github.event.inputs.path_type }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size }}
           BATCH_PAUSE: ${{ github.event.inputs.batch_pause }}
-        run: python script.py
+        run: python -u script.py
