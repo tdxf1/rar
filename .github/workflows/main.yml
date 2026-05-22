@@ -1,0 +1,74 @@
+name: WinRAR Hidden URL Finder (Parallel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days_before:
+        description: 'Days to search before the release date'
+        required: false
+        default: '10'
+        type: string
+      batch_size:
+        description: 'Number of requests per batch before pausing'
+        required: false
+        default: '30'
+        type: string
+      batch_interval:
+        description: 'Pause duration between batches (seconds)'
+        required: false
+        default: '60'
+        type: string
+      request_interval:
+        description: 'Delay between individual requests (seconds)'
+        required: false
+        default: '1'
+        type: string
+
+jobs:
+  find-winrar:
+    name: Scan [${{ matrix.subdir }}]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    strategy:
+      matrix:
+        subdir: [wrr, rrlb]
+      fail-fast: false   # let both jobs finish even if one finds the URL
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run scanner [${{ matrix.subdir }}]
+        id: finder
+        env:
+          SUBDIR:           ${{ matrix.subdir }}
+          DAYS_BEFORE:      ${{ github.event.inputs.days_before }}
+          BATCH_SIZE:       ${{ github.event.inputs.batch_size }}
+          BATCH_INTERVAL:   ${{ github.event.inputs.batch_interval }}
+          REQUEST_INTERVAL: ${{ github.event.inputs.request_interval }}
+        run: python winrar_finder.py
+
+      - name: Output result summary [${{ matrix.subdir }}]
+        if: always()
+        run: |
+          echo "## WinRAR Scan Results — subdir: ${{ matrix.subdir }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.finder.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release Date | ${{ steps.finder.outputs.release_date }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Filename | ${{ steps.finder.outputs.file_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Public URL | ${{ steps.finder.outputs.public_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hidden URL | ${{ steps.finder.outputs.found_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Subdirectory | ${{ steps.finder.outputs.found_sub }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Params**: days_before=${{ github.event.inputs.days_before }}, batch_size=${{ github.event.inputs.batch_size }}, batch_interval=${{ github.event.inputs.batch_interval }}s, request_interval=${{ github.event.inputs.request_interval }}s" >> $GITHUB_STEP_SUMMARY
